@@ -3,6 +3,35 @@
 # As of `1.4.2`, we cannot copy the statically linked binary out of it.
 # FROM docker.io/duckdb/duckdb:1.4.2
 
+# todo: use the official `docker.io/taskfile/task` image once it is updated regularly
+# see also https://github.com/go-task/task/issues/1801
+FROM golang:1-alpine AS task
+
+WORKDIR /app
+
+# https://docs.docker.com/engine/reference/builder/#automatic-platform-args-in-the-global-scope
+ARG TARGETOS
+ARG TARGETARCH
+ARG TARGETVARIANT
+
+RUN apk add --no-cache git file
+
+# https://github.com/go-task/task
+# kept up-to-date by Renovate Bot
+ARG TASKFILE_GIT_REF=v3.45.5
+RUN git clone -q --depth 1 --revision=${TASKFILE_GIT_REF} https://github.com/go-task/task.git .
+
+# golang:1-alpine sets $GOPATH to /go
+# see also https://github.com/go-task/task/blob/v3.45.5/.github/workflows/test.yml#L35
+RUN --mount=type=cache,id=go-cache,target=/go \
+	--mount=type=cache,id=go-build-cache,target=/root/.cache/go-build \
+	set -eux -o pipefail; \
+	[[ "$TARGETARCH" = 'arm64' && -n "$TARGETVARIANT" ]] && export GOARM="$TARGETVARIANT"; \
+	env GOOS="$TARGETOS" GOARCH="$TARGETARCH" go build -ldflags='-s -w' -o ./task -v ./cmd/task \
+	&& ls -lh task \
+	&& file task \
+	&& ./task --help 2>/dev/null
+
 FROM golang:1-alpine AS gtfsclean
 
 WORKDIR /app
@@ -65,6 +94,11 @@ COPY --from=gtfsclean /app/gtfsclean /usr/local/bin/gtfsclean
 # smoke test
 RUN gtfsclean --help >/dev/null
 
+# install `task` CLI
+COPY --from=task /usr/local/bin/task /usr/local/bin/task
+# smoke test
+RUN task --version
+
 # install DuckDB
 RUN \
 	curl 'https://install.duckdb.org' -fsSL | sh && \
@@ -73,13 +107,19 @@ RUN \
 # smoke test
 RUN duckdb --version
 
+# note: gtfs-via-duckdb is dual-licensed as Apache/Prosperity
 ADD package.json ./
 RUN --mount=type=cache,target=/tmp/node-compile-cache \
 	--mount=type=cache,target=/root/.npm \
-	npm install --omit dev && npm cache clean --force
+	npm install --omit dev && npm cache clean --force && \
+	ln -s "$(realpath node_modules/.bin/gtfs-to-duckdb)" /usr/local/bin/gtfs-to-duckdb
+# smoke test
+RUN gtfs-to-duckdb --version
 
 ADD . .
 
 WORKDIR /var/gtfs
 
-# todo
+ENTRYPOINT ["task", "-d", "/var/gtfs", "-t", "/opt/duckdb-gtfs-importer/Taskfile.yml"]
+# for specifying tasks
+CMD []

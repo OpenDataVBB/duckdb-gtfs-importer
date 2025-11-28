@@ -1,0 +1,165 @@
+# https://taskfile.dev
+version: '3'
+
+# We follow postgis-gtfs-importer#v5's naming here.
+# see also https://github.com/mobidata-bw/postgis-gtfs-importer/tree/v5
+# Note: `task` doesn't seem to support templates (using `default`) here, so we use the shell to provide default values.
+env:
+  GTFS_IMPORTER_VERBOSE: '{{.GTFS_IMPORTER_VERBOSE | default "true"}}'
+  GTFS_TMP_DIR: '{{.GTFS_TMP_DIR | default "/tmp/gtfs/"}}'
+  GTFS_DOWNLOAD_LOG_LEVEL: '{{.GTFS_DOWNLOAD_LOG_LEVEL | default "info"}}'
+  # > Note: We're using gtfsclean, a fork of gtfstidy, but keep the flags backwards-compatible.
+  # https://github.com/mobidata-bw/postgis-gtfs-importer/blob/8957bb9a22ca4a6ade5489f12965de7198fce648/import.sh#L37C1-L37C92
+  GTFSTIDY_BEFORE_IMPORT: '{{.GTFSTIDY_BEFORE_IMPORT | default "true"}}'
+  GTFS_IMPORTER_DB_PREFIX: '{{.GTFS_IMPORTER_DB_PREFIX | default "gtfs"}}'
+
+set:
+  - errexit # -e
+  - nounset # -u
+  - pipefail
+shopt:
+  - nullglob # expand globs even if they evaluate to an empty set
+
+tasks:
+  download-gtfs:
+    run: once
+    summary: |
+      Downloads the GTFS dataset to `gtfs.zip`.
+    requires:
+      vars:
+        - GTFS_IMPORTER_VERBOSE
+        - GTFS_TMP_DIR
+        - GTFS_DOWNLOAD_LOG_LEVEL
+        - GTFS_DOWNLOAD_URL
+        - GTFS_DOWNLOAD_USER_AGENT
+    generates:
+      - "{{.GTFS_TMP_DIR}}gtfs.zip"
+      - "{{.GTFS_TMP_DIR}}gtfs.zip.sha256"
+    cmds:
+      - mkdir -p "{{.GTFS_TMP_DIR}}"
+      - rm -f "{{.GTFS_TMP_DIR}}gtfs.zip.sha256"
+      - |
+        curl-mirror \
+          --log-level "{{.GTFS_DOWNLOAD_LOG_LEVEL}}" \
+          --times \
+          "{{.GTFS_DOWNLOAD_URL}}" "{{.GTFS_TMP_DIR}}gtfs.zip" -- \
+          -A "{{.GTFS_DOWNLOAD_USER_AGENT}}" \
+          {{.CLI_ARGS}}
+        sha256sum "{{.GTFS_TMP_DIR}}gtfs.zip" | cut -d' ' -f1 | tr -d '\n' >"{{.GTFS_TMP_DIR}}gtfs.zip.sha256"
+
+  extract-gtfs:
+    deps:
+      - download-gtfs
+    run: when_changed
+    summay: |
+      Extracts the GTFS zip archive into a directory.
+    requires:
+      vars:
+        - GTFS_IMPORTER_VERBOSE
+        - GTFS_TMP_DIR
+    sources:
+      - "{{.GTFS_TMP_DIR}}gtfs.zip"
+    generates:
+      - "{{.GTFS_TMP_DIR}}gtfs"
+    cmds:
+      - rm -rf "{{.GTFS_TMP_DIR}}gtfs"
+      - |
+        unzip \
+          {{if eq .GTFS_IMPORTER_VERBOSE "false"}}-q{{end}} \
+          -d "{{.GTFS_TMP_DIR}}gtfs" \
+          {{.CLI_ARGS}} \
+          "{{.GTFS_TMP_DIR}}gtfs.zip"
+      # apply ZIP's mtime to whole directory too
+      - touch -c -r "{{.GTFS_TMP_DIR}}gtfs/stops.txt" "{{.GTFS_TMP_DIR}}gtfs"
+
+  clean-gtfs:
+    deps:
+      - extract-gtfs
+    run: when_changed
+    summary: |
+      Cleans the GTFS data using gtfsclean.
+    env:
+      # fixing
+      GTFSTIDY_FIX_ZIP: '{{.GTFSTIDY_FIX_ZIP | default "true"}}'
+      GTFSTIDY_DEFAULT_ON_ERRS: '{{.GTFSTIDY_DEFAULT_ON_ERRS | default "true"}}'
+      GTFSTIDY_DROP_ERRS: '{{.GTFSTIDY_DROP_ERRS | default "true"}}'
+      GTFSTIDY_CHECK_NULL_COORDS: '{{.GTFSTIDY_CHECK_NULL_COORDS | default "true"}}'
+      # minimization
+      # todo: default to true once https://github.com/public-transport/gtfsclean/issues/12 is fixed
+      GTFSTIDY_KEEP_ADDITIONAL_FIELDS: '{{.GTFSTIDY_KEEP_ADDITIONAL_FIELDS | default "false"}}'
+      GTFSTIDY_KEEP_IDS: '{{.GTFSTIDY_KEEP_IDS | default "true"}}'
+      GTFSTIDY_MIN_SHAPES: '{{.GTFSTIDY_MIN_SHAPES | default "true"}}'
+      GTFSTIDY_MINIMIZE_SERVICES: '{{.GTFSTIDY_MINIMIZE_SERVICES | default "true"}}'
+      GTFSTIDY_MINIMIZE_STOPTIMES: '{{.GTFSTIDY_MINIMIZE_STOPTIMES | default "true"}}'
+      GTFSTIDY_DELETE_ORPHANS: '{{.GTFSTIDY_DELETE_ORPHANS | default "true"}}'
+      GTFSTIDY_REMOVE_REDUNDANT_AGENCIES: '{{.GTFSTIDY_REMOVE_REDUNDANT_AGENCIES | default "true"}}'
+      GTFSTIDY_REMOVE_REDUNDANT_ROUTES: '{{.GTFSTIDY_REMOVE_REDUNDANT_ROUTES | default "true"}}'
+      GTFSTIDY_REMOVE_REDUNDANT_SERVICES: '{{.GTFSTIDY_REMOVE_REDUNDANT_SERVICES | default "true"}}'
+      GTFSTIDY_REMOVE_REDUNDANT_SHAPES: '{{.GTFSTIDY_REMOVE_REDUNDANT_SHAPES | default "true"}}'
+      GTFSTIDY_REMOVE_REDUNDANT_STOPS: '{{.GTFSTIDY_REMOVE_REDUNDANT_STOPS | default "true"}}'
+      GTFSTIDY_REMOVE_REDUNDANT_TRIPS: '{{.GTFSTIDY_REMOVE_REDUNDANT_TRIPS | default "true"}}'
+    sources:
+      - "{{.GTFS_TMP_DIR}}gtfs"
+    generates:
+      - "{{.GTFS_TMP_DIR}}tidied.gtfs"
+      - "{{.GTFS_TMP_DIR}}tidied.gtfs.gtfstidy-log.txt"
+    cmds:
+      - rm -rf "{{.GTFS_TMP_DIR}}tidied.gtfs"
+      - silent: true
+        cmd: |
+          if [ "$GTFSTIDY_BEFORE_IMPORT" == "false" ]; then
+            echo "creating symlink: {{.GTFS_TMP_DIR}}tidied.gtfs -> {{.GTFS_TMP_DIR}}gtfs"
+            ln -s "{{.GTFS_TMP_DIR}}gtfs" "{{.GTFS_TMP_DIR}}tidied.gtfs"
+          else
+            echo 'Tidying GTFS feed using gtfsclean.'
+            gtfsclean \
+              {{if ne .GTFS_IMPORTER_VERBOSE "false"}}--show-warnings{{end}} \
+              {{if ne .GTFSTIDY_FIX_ZIP "false"}}--fix-zip{{end}} \
+              {{if ne .GTFSTIDY_DEFAULT_ON_ERRS "false"}}--default-on-errs{{end}} \
+              {{if ne .GTFSTIDY_DROP_ERRS "false"}}--drop-errs{{end}} \
+              {{if ne .GTFSTIDY_CHECK_NULL_COORDS "false"}}--check-null-coords{{end}} \
+              {{if ne .GTFSTIDY_KEEP_ADDITIONAL_FIELDS "true"}}--keep-additional-fields{{end}} \
+              {{if ne .GTFSTIDY_KEEP_IDS "false"}}--keep-ids{{end}} \
+              {{if ne .GTFSTIDY_MIN_SHAPES "false"}}--min-shapes{{end}} \
+              {{if ne .GTFSTIDY_MINIMIZE_SERVICES "false"}}--minimize-services{{end}} \
+              {{if ne .GTFSTIDY_MINIMIZE_STOPTIMES "false"}}--minimize-stoptimes{{end}} \
+              {{if ne .GTFSTIDY_DELETE_ORPHANS "false"}}--delete-orphans{{end}} \
+              {{if ne .GTFSTIDY_REMOVE_REDUNDANT_AGENCIES "false"}}--remove-red-agencies{{end}} \
+              {{if ne .GTFSTIDY_REMOVE_REDUNDANT_ROUTES "false"}}--remove-red-routes{{end}} \
+              {{if ne .GTFSTIDY_REMOVE_REDUNDANT_SERVICES "false"}}--remove-red-services{{end}} \
+              {{if ne .GTFSTIDY_REMOVE_REDUNDANT_SHAPES "false"}}--remove-red-shapes{{end}} \
+              {{if ne .GTFSTIDY_REMOVE_REDUNDANT_STOPS "false"}}--remove-red-stops{{end}} \
+              {{if ne .GTFSTIDY_REMOVE_REDUNDANT_TRIPS "false"}}--remove-red-trips{{end}} \
+              {{.CLI_ARGS}} \
+              -o "{{.GTFS_TMP_DIR}}tidied.gtfs" \
+              "{{.GTFS_TMP_DIR}}gtfs" \
+              2>&1 | tee "{{.GTFS_TMP_DIR}}tidied.gtfs.gtfstidy-log.txt"
+          fi
+      - touch -c -r "{{.GTFS_TMP_DIR}}tidied.gtfs" "{{.GTFS_TMP_DIR}}gtfs"
+
+  import-gtfs:
+    deps:
+      - clean-gtfs
+    run: when_changed
+    summay: |
+      Imports the GTFS data into a DuckDB database using gtfs-via-duckdb.
+    requires:
+      vars:
+        - GTFS_TMP_DIR
+        - GTFS_IMPORTER_DB_PREFIX
+    sources:
+      - "{{.GTFS_TMP_DIR}}gtfs.zip.sha256"
+      - "{{.GTFS_TMP_DIR}}tidied.gtfs/*.txt"
+    cmds:
+      - |
+        digest="$(head -c 6 "{{.GTFS_TMP_DIR}}gtfs.zip.sha256")"
+        db_filename="{{.GTFS_IMPORTER_DB_PREFIX}}_{{now | unixEpoch}}_$digest.gtfs.duckdb"
+        gtfs-to-duckdb -d --stops-location-index --import-metadata {{.CLI_ARGS}} -- "{{.GTFS_TMP_DIR}}$db_filename" "{{.GTFS_TMP_DIR}}tidied.gtfs"/*.txt
+        duckdb -c "CREATE OR REPLACE FUNCTION gtfs_feed_digest () AS ('$digest')" "{{.GTFS_TMP_DIR}}$db_filename" 
+        touch -c -r {{.GTFS_TMP_DIR}}tidied.gtfs/stops.txt "{{.GTFS_TMP_DIR}}$db_filename"
+        mv "{{.GTFS_TMP_DIR}}$db_filename" ./
+
+  default:
+    run: once
+    cmds:
+      - task: import-gtfs

@@ -8,5 +8,6 @@
 		"node": ">=24"
 	},
 	"dependencies": {
+		"gtfs-via-duckdb": "^5.0.0-alpha.0"
 	}
 }
