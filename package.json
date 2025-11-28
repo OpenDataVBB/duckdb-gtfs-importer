@@ -1,0 +1,12 @@
+{
+	"private": true,
+	"name": "duckdb-gtfs-importer",
+	"version": "1",
+	"type": "module",
+	"main": "index.js",
+	"engines": {
+		"node": ">=24"
+	},
+	"dependencies": {
+	}
+}
