@@ -12,6 +12,7 @@ env:
   # https://github.com/mobidata-bw/postgis-gtfs-importer/blob/8957bb9a22ca4a6ade5489f12965de7198fce648/import.sh#L37C1-L37C92
   GTFSTIDY_BEFORE_IMPORT: '{{.GTFSTIDY_BEFORE_IMPORT | default "true"}}'
   GTFS_IMPORTER_DB_PREFIX: '{{.GTFS_IMPORTER_DB_PREFIX | default "gtfs"}}'
+  GTFS_KEEP_DBS: '{{.GTFS_KEEP_DBS | default "2"}}'
 
 set:
   - errexit # -e
@@ -159,7 +160,63 @@ tasks:
         touch -c -r {{.GTFS_TMP_DIR}}tidied.gtfs/stops.txt "{{.GTFS_TMP_DIR}}$db_filename"
         mv "{{.GTFS_TMP_DIR}}$db_filename" ./
 
+  housekeep-imports:
+    run: once
+    summary: |
+      Symlinks the latest DB to {{.GTFS_IMPORTER_DB_PREFIX}}.gtfs.duckdb, and only keeps the most {{.GTFS_KEEP_DBS}} DBs.
+    requires:
+      vars:
+        - GTFS_IMPORTER_DB_PREFIX
+        - GTFS_KEEP_DBS
+    sources:
+      - '{{.GTFS_IMPORTER_DB_PREFIX}}_*.gtfs.duckdb'
+    generates:
+      - '{{.GTFS_IMPORTER_DB_PREFIX}}.gtfs.duckdb'
+    cmds:
+      - silent: true
+        cmd: |
+          if [ "$GTFS_IMPORTER_VERBOSE" != false ]; then
+            set -x
+          fi
+
+          dbs_asc="{{.GTFS_IMPORTER_DB_PREFIX}}_*.gtfs.duckdb"
+          # Note: In contrast to sh (GNU Bash v3.2.57) on macOS, `mvdan/sh` (used by task) seems to require explicit expansion.
+          dbs_asc=($dbs_asc)
+
+          dbs=$(printf '%s\n' "${dbs_asc[@]}" | sort -n -r)
+          # convert multiline string to array
+          # see https://stackoverflow.com/a/24628676/1072129
+          SAVEIFS=$IFS
+          IFS=$'\n'
+          dbs=($dbs)
+          IFS=$SAVEIFS
+
+          dbs_to_remove=$(printf '%s\n' "${dbs[@]}" | tail -n '+{{add 1 .GTFS_KEEP_DBS}}')
+          # convert multiline string to array
+          # see https://stackoverflow.com/a/24628676/1072129
+          SAVEIFS=$IFS
+          IFS=$'\n'
+          dbs_to_remove=($dbs_to_remove)
+          IFS=$SAVEIFS
+
+          latest_db="${dbs[0]}"
+
+          if [ ${#dbs_to_remove[@]} -eq 0 ]; then
+            echo 'no database to remove'
+          else
+            echo "removing ${#dbs_to_remove[@]} databases"
+            # https://unix.stackexchange.com/a/310963/593065
+            old_options="$(set +o)"
+            set -x
+            rm "${dbs_to_remove[@]}"
+            set +x; eval "$old_options"
+          fi
+
+          echo "creating symlink: gtfs.gtfs.duckdb -> $latest_db"
+          ln -f -s "$latest_db" gtfs.gtfs.duckdb
+
   default:
     run: once
     cmds:
       - task: import-gtfs
+      - task: housekeep-imports
