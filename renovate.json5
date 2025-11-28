@@ -1,0 +1,40 @@
+{
+	'$schema': 'https://docs.renovatebot.com/renovate-schema.json',
+	extends: [
+		'config:recommended',
+	],
+	customManagers: [
+		// keep `ARG TASKFILE_GIT_REF=…` in Dockerfile up-to-date
+		{
+			customType: 'regex',
+			managerFilePatterns: [
+				'/\\bDockerfile$/',
+			],
+			matchStrings: [
+				// for some reason `\b` doesn't work here, so we fall back to `\s` :(
+				"\\bARG\\s+TASKFILE_GIT_REF=(?<currentValue>.+?)\\s",
+			],
+			depNameTemplate: 'https://github.com/go-task/task',
+			packageNameTemplate: 'https://github.com/go-task/task',
+			datasourceTemplate: 'git-tags',
+			versioningTemplate: 'semver',
+		},
+
+		// keep `ARG GTFSCLEAN_GIT_REF=…` in Dockerfile up-to-date
+		{
+			customType: 'regex',
+			managerFilePatterns: [
+				'/\\bDockerfile$/',
+			],
+			matchStrings: [
+		    // for some reason `^` & `$` don't work here, so we fall back to `\b` :(
+		    "\\bARG\\s+GTFSCLEAN_GIT_REF=(?<currentDigest>.+?)\\b",
+			],
+		  currentValueTemplate: 'master',
+		  depNameTemplate: 'https://github.com/public-transport/gtfsclean',
+		  packageNameTemplate: 'https://github.com/public-transport/gtfsclean',
+		  datasourceTemplate: 'git-refs',
+		  versioningTemplate: 'git',
+		},
+	],
+}
