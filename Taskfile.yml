@@ -212,8 +212,8 @@ tasks:
             set +x; eval "$old_options"
           fi
 
-          echo "creating symlink: gtfs.gtfs.duckdb -> $latest_db"
-          ln -f -s "$latest_db" gtfs.gtfs.duckdb
+          echo "creating symlink: {{.GTFS_IMPORTER_DB_PREFIX}}.gtfs.duckdb -> $latest_db"
+          ln -f -s "$latest_db" "{{.GTFS_IMPORTER_DB_PREFIX}}.gtfs.duckdb"
 
   default:
     run: once
