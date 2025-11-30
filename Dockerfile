@@ -92,10 +92,10 @@ RUN \
 # install gtfsclean
 COPY --from=gtfsclean /app/gtfsclean /usr/local/bin/gtfsclean
 # smoke test
-RUN gtfsclean --help >/dev/null
+RUN gtfsclean --help 2>/dev/null
 
 # install `task` CLI
-COPY --from=task /usr/local/bin/task /usr/local/bin/task
+COPY --from=task /app/task /usr/local/bin/task
 # smoke test
 RUN task --version
 
