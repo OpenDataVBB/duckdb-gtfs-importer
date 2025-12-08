@@ -40,6 +40,7 @@ jobs:
     - name: compute Docker image name
       run: |
         echo "DOCKER_IMAGE=ghcr.io/${GITHUB_REPOSITORY,,}" >>${GITHUB_ENV}
+        echo "DOCKER_MAJOR_LABEL=$(echo -n '${{ github.ref_name }}' | cut -d'.' -f1)" >>${GITHUB_ENV}
       env:
         GITHUB_REPOSITORY: '${{ github.repository }}'
 
@@ -49,6 +50,7 @@ jobs:
         push: true
         tags: |
           ${{ env.DOCKER_IMAGE }}:latest
+          ${{ env.DOCKER_IMAGE }}:${{ env.DOCKER_MAJOR_LABEL }}
           ${{ env.DOCKER_IMAGE }}:${{ github.ref_name }}
         labels: ${{ steps.docker-metadata.outputs.labels }}
         platforms: linux/amd64,linux/arm64
