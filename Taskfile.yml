@@ -155,10 +155,13 @@ tasks:
       - |
         digest="$(head -c 6 "{{.GTFS_TMP_DIR}}gtfs.zip.sha256")"
         db_filename="{{.GTFS_IMPORTER_DB_PREFIX}}_{{now | unixEpoch}}_$digest.gtfs.duckdb"
-        gtfs-to-duckdb -d --stops-location-index --import-metadata {{.CLI_ARGS}} -- "{{.GTFS_TMP_DIR}}$db_filename" "{{.GTFS_TMP_DIR}}tidied.gtfs"/*.txt
-        duckdb -c "CREATE OR REPLACE FUNCTION gtfs_feed_digest () AS ('$digest')" "{{.GTFS_TMP_DIR}}$db_filename" 
-        touch -c -r {{.GTFS_TMP_DIR}}tidied.gtfs/stops.txt "{{.GTFS_TMP_DIR}}$db_filename"
-        mv "{{.GTFS_TMP_DIR}}$db_filename" ./
+        db_path="{{.GTFS_TMP_DIR}}$db_filename"
+
+        gtfs-to-duckdb -d --stops-location-index --import-metadata {{.CLI_ARGS}} -- "$db_path" "{{.GTFS_TMP_DIR}}tidied.gtfs"/*.txt
+        duckdb -c "CREATE OR REPLACE FUNCTION gtfs_feed_digest () AS ('$digest')" "$db_path"
+
+        touch -c -r {{.GTFS_TMP_DIR}}tidied.gtfs/stops.txt "$db_path"
+        mv "$db_path" ./
 
   housekeep-imports:
     run: once
