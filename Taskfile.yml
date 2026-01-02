@@ -13,6 +13,7 @@ env:
   GTFSTIDY_BEFORE_IMPORT: '{{.GTFSTIDY_BEFORE_IMPORT | default "true"}}'
   GTFS_IMPORTER_DB_PREFIX: '{{.GTFS_IMPORTER_DB_PREFIX | default "gtfs"}}'
   GTFS_KEEP_DBS: '{{.GTFS_KEEP_DBS | default "2"}}'
+  GTFS_POSTPROCESSING_D_PATH: ''
 
 set:
   - errexit # -e
@@ -148,9 +149,11 @@ tasks:
       vars:
         - GTFS_TMP_DIR
         - GTFS_IMPORTER_DB_PREFIX
+        - GTFS_POSTPROCESSING_D_PATH
     sources:
       - "{{.GTFS_TMP_DIR}}gtfs.zip.sha256"
       - "{{.GTFS_TMP_DIR}}tidied.gtfs/*.txt"
+      - "{{.GTFS_POSTPROCESSING_D_PATH}}/*"
     cmds:
       - |
         digest="$(head -c 6 "{{.GTFS_TMP_DIR}}gtfs.zip.sha256")"
@@ -160,6 +163,26 @@ tasks:
         gtfs-to-duckdb -d --stops-location-index --import-metadata {{.CLI_ARGS}} -- "$db_path" "{{.GTFS_TMP_DIR}}tidied.gtfs"/*.txt
         duckdb -c "CREATE OR REPLACE FUNCTION gtfs_feed_digest () AS ('$digest')" "$db_path"
 
+        if [ -d "$GTFS_POSTPROCESSING_D_PATH" ]; then
+          # Task's shell (mvdan/sh) doesn't support `shopt -p` yet.
+          # prev_nullglob="$(shopt -po nullglob)"
+          shopt -s nullglob
+
+          for file in "$GTFS_POSTPROCESSING_D_PATH/"*; do
+            ext="${file##*.}"
+            if [ "$ext" = "sql" ]; then
+              duckdb -f "$file" "$db_path"
+            else
+              "$file" "$gtfs_path"
+            fi
+          done
+
+          # # reset `nullglob` to previous setting
+          # eval "$prev_nullglob"
+          shopt -u nullglob
+        fi
+
+        # todo: move this into a postprocessing hook
         touch -c -r {{.GTFS_TMP_DIR}}tidied.gtfs/stops.txt "$db_path"
         mv "$db_path" ./
 
