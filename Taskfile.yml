@@ -6,6 +6,7 @@ version: '3'
 # Note: `task` doesn't seem to support templates (using `default`) here, so we use the shell to provide default values.
 env:
   GTFS_IMPORTER_VERBOSE: '{{.GTFS_IMPORTER_VERBOSE | default "true"}}'
+  GTFS_VIA_DUCKDB_FLAGS: '{{.GTFS_VIA_DUCKDB_FLAGS | default ""}}'
   GTFS_TMP_DIR: '{{.GTFS_TMP_DIR | default "/tmp/gtfs/"}}'
   GTFS_DOWNLOAD_LOG_LEVEL: '{{.GTFS_DOWNLOAD_LOG_LEVEL | default "info"}}'
   # > Note: We're using gtfsclean, a fork of gtfstidy, but keep the flags backwards-compatible.
@@ -148,6 +149,7 @@ tasks:
     requires:
       vars:
         - GTFS_TMP_DIR
+        - GTFS_VIA_DUCKDB_FLAGS
         - GTFS_IMPORTER_DB_PREFIX
         - GTFS_POSTPROCESSING_D_PATH
     sources:
@@ -155,12 +157,16 @@ tasks:
       - "{{.GTFS_TMP_DIR}}tidied.gtfs/*.txt"
       - "{{.GTFS_POSTPROCESSING_D_PATH}}/*"
     cmds:
+      # todo: use tempfile to make import atomic
       - |
         digest="$(head -c 6 "{{.GTFS_TMP_DIR}}gtfs.zip.sha256")"
         db_filename="{{.GTFS_IMPORTER_DB_PREFIX}}_{{now | unixEpoch}}_$digest.gtfs.duckdb"
         db_path="{{.GTFS_TMP_DIR}}$db_filename"
 
-        gtfs-to-duckdb -d --stops-location-index --import-metadata {{.CLI_ARGS}} -- "$db_path" "{{.GTFS_TMP_DIR}}tidied.gtfs"/*.txt
+        gtfs-to-duckdb \
+          -d --stops-location-index --import-metadata \
+          {{.GTFS_VIA_DUCKDB_FLAGS}} {{.CLI_ARGS}} \
+          -- "$db_path" "{{.GTFS_TMP_DIR}}tidied.gtfs"/*.txt
         duckdb -c "CREATE OR REPLACE FUNCTION gtfs_feed_digest () AS ('$digest')" "$db_path"
 
         if [ -d "$GTFS_POSTPROCESSING_D_PATH" ]; then
