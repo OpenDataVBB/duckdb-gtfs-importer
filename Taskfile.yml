@@ -97,12 +97,12 @@ tasks:
       GTFSTIDY_MINIMIZE_SERVICES: '{{.GTFSTIDY_MINIMIZE_SERVICES | default "true"}}'
       GTFSTIDY_MINIMIZE_STOPTIMES: '{{.GTFSTIDY_MINIMIZE_STOPTIMES | default "true"}}'
       GTFSTIDY_DELETE_ORPHANS: '{{.GTFSTIDY_DELETE_ORPHANS | default "true"}}'
-      GTFSTIDY_REMOVE_REDUNDANT_AGENCIES: '{{.GTFSTIDY_REMOVE_REDUNDANT_AGENCIES | default "true"}}'
-      GTFSTIDY_REMOVE_REDUNDANT_ROUTES: '{{.GTFSTIDY_REMOVE_REDUNDANT_ROUTES | default "true"}}'
-      GTFSTIDY_REMOVE_REDUNDANT_SERVICES: '{{.GTFSTIDY_REMOVE_REDUNDANT_SERVICES | default "true"}}'
-      GTFSTIDY_REMOVE_REDUNDANT_SHAPES: '{{.GTFSTIDY_REMOVE_REDUNDANT_SHAPES | default "true"}}'
-      GTFSTIDY_REMOVE_REDUNDANT_STOPS: '{{.GTFSTIDY_REMOVE_REDUNDANT_STOPS | default "true"}}'
-      GTFSTIDY_REMOVE_REDUNDANT_TRIPS: '{{.GTFSTIDY_REMOVE_REDUNDANT_TRIPS | default "true"}}'
+      GTFSTIDY_REMOVE_REDUNDANT_AGENCIES: '{{.GTFSTIDY_REMOVE_REDUNDANT_AGENCIES | default "false"}}'
+      GTFSTIDY_REMOVE_REDUNDANT_ROUTES: '{{.GTFSTIDY_REMOVE_REDUNDANT_ROUTES | default "false"}}'
+      GTFSTIDY_REMOVE_REDUNDANT_SERVICES: '{{.GTFSTIDY_REMOVE_REDUNDANT_SERVICES | default "false"}}'
+      GTFSTIDY_REMOVE_REDUNDANT_SHAPES: '{{.GTFSTIDY_REMOVE_REDUNDANT_SHAPES | default "false"}}'
+      GTFSTIDY_REMOVE_REDUNDANT_STOPS: '{{.GTFSTIDY_REMOVE_REDUNDANT_STOPS | default "false"}}'
+      GTFSTIDY_REMOVE_REDUNDANT_TRIPS: '{{.GTFSTIDY_REMOVE_REDUNDANT_TRIPS | default "false"}}'
     sources:
       - "{{.GTFS_TMP_DIR}}gtfs"
     generates:
@@ -129,12 +129,12 @@ tasks:
               {{if ne .GTFSTIDY_MINIMIZE_SERVICES "false"}}--minimize-services{{end}} \
               {{if ne .GTFSTIDY_MINIMIZE_STOPTIMES "false"}}--minimize-stoptimes{{end}} \
               {{if ne .GTFSTIDY_DELETE_ORPHANS "false"}}--delete-orphans{{end}} \
-              {{if ne .GTFSTIDY_REMOVE_REDUNDANT_AGENCIES "false"}}--remove-red-agencies{{end}} \
-              {{if ne .GTFSTIDY_REMOVE_REDUNDANT_ROUTES "false"}}--remove-red-routes{{end}} \
-              {{if ne .GTFSTIDY_REMOVE_REDUNDANT_SERVICES "false"}}--remove-red-services{{end}} \
-              {{if ne .GTFSTIDY_REMOVE_REDUNDANT_SHAPES "false"}}--remove-red-shapes{{end}} \
-              {{if ne .GTFSTIDY_REMOVE_REDUNDANT_STOPS "false"}}--remove-red-stops{{end}} \
-              {{if ne .GTFSTIDY_REMOVE_REDUNDANT_TRIPS "false"}}--remove-red-trips{{end}} \
+              {{if eq .GTFSTIDY_REMOVE_REDUNDANT_AGENCIES "true"}}--remove-red-agencies{{end}} \
+              {{if eq .GTFSTIDY_REMOVE_REDUNDANT_ROUTES "true"}}--remove-red-routes{{end}} \
+              {{if eq .GTFSTIDY_REMOVE_REDUNDANT_SERVICES "true"}}--remove-red-services{{end}} \
+              {{if eq .GTFSTIDY_REMOVE_REDUNDANT_SHAPES "true"}}--remove-red-shapes{{end}} \
+              {{if eq .GTFSTIDY_REMOVE_REDUNDANT_STOPS "true"}}--remove-red-stops{{end}} \
+              {{if eq .GTFSTIDY_REMOVE_REDUNDANT_TRIPS "true"}}--remove-red-trips{{end}} \
               {{.CLI_ARGS}} \
               -o "{{.GTFS_TMP_DIR}}tidied.gtfs" \
               "{{.GTFS_TMP_DIR}}gtfs" \
