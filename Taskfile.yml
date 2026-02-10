@@ -49,6 +49,8 @@ tasks:
           -A "{{.GTFS_DOWNLOAD_USER_AGENT}}" \
           {{.CLI_ARGS}}
         sha256sum "{{.GTFS_TMP_DIR}}gtfs.zip" | cut -d' ' -f1 | tr -d '\n' >"{{.GTFS_TMP_DIR}}gtfs.zip.sha256"
+        # apply ZIP's mtime to checksum file too
+        touch -r "{{.GTFS_TMP_DIR}}gtfs.zip" "{{.GTFS_TMP_DIR}}gtfs.zip.sha256"
 
   extract-gtfs:
     deps:
