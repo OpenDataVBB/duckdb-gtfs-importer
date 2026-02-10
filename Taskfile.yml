@@ -6,12 +6,15 @@ version: '3'
 # Note: `task` doesn't seem to support templates (using `default`) here, so we use the shell to provide default values.
 env:
   GTFS_IMPORTER_VERBOSE: '{{.GTFS_IMPORTER_VERBOSE | default "true"}}'
+  CURL_MIRROR_FLAGS: '{{.CURL_MIRROR_FLAGS | default ""}}'
+  CURL_MIRROR_CURL_FLAGS: '{{.CURL_MIRROR_CURL_FLAGS | default ""}}'
   GTFS_VIA_DUCKDB_FLAGS: '{{.GTFS_VIA_DUCKDB_FLAGS | default ""}}'
   GTFS_TMP_DIR: '{{.GTFS_TMP_DIR | default "/tmp/gtfs/"}}'
   GTFS_DOWNLOAD_LOG_LEVEL: '{{.GTFS_DOWNLOAD_LOG_LEVEL | default "info"}}'
   # > Note: We're using gtfsclean, a fork of gtfstidy, but keep the flags backwards-compatible.
   # https://github.com/mobidata-bw/postgis-gtfs-importer/blob/8957bb9a22ca4a6ade5489f12965de7198fce648/import.sh#L37C1-L37C92
   GTFSTIDY_BEFORE_IMPORT: '{{.GTFSTIDY_BEFORE_IMPORT | default "true"}}'
+  GTFSCLEAN_FLAGS: '{{.GTFSCLEAN_FLAGS | default ""}}'
   GTFS_IMPORTER_DB_PREFIX: '{{.GTFS_IMPORTER_DB_PREFIX | default "gtfs"}}'
   GTFS_KEEP_DBS: '{{.GTFS_KEEP_DBS | default "2"}}'
   GTFS_POSTPROCESSING_D_PATH: ''
@@ -45,9 +48,10 @@ tasks:
         curl-mirror \
           --log-level "{{.GTFS_DOWNLOAD_LOG_LEVEL}}" \
           --times \
+          {{.CURL_MIRROR_FLAGS}} \
           "{{.GTFS_DOWNLOAD_URL}}" "{{.GTFS_TMP_DIR}}gtfs.zip" -- \
           -A "{{.GTFS_DOWNLOAD_USER_AGENT}}" \
-          {{.CLI_ARGS}}
+          {{.CURL_MIRROR_CURL_FLAGS}}
         sha256sum "{{.GTFS_TMP_DIR}}gtfs.zip" | cut -d' ' -f1 | tr -d '\n' >"{{.GTFS_TMP_DIR}}gtfs.zip.sha256"
         # apply ZIP's mtime to checksum file too
         touch -r "{{.GTFS_TMP_DIR}}gtfs.zip" "{{.GTFS_TMP_DIR}}gtfs.zip.sha256"
@@ -72,7 +76,6 @@ tasks:
         unzip \
           {{if eq .GTFS_IMPORTER_VERBOSE "false"}}-q{{end}} \
           -d "{{.GTFS_TMP_DIR}}gtfs" \
-          {{.CLI_ARGS}} \
           "{{.GTFS_TMP_DIR}}gtfs.zip"
       # apply ZIP's mtime to whole directory too
       - touch -c -r "{{.GTFS_TMP_DIR}}gtfs/stops.txt" "{{.GTFS_TMP_DIR}}gtfs"
@@ -135,7 +138,7 @@ tasks:
               {{if eq .GTFSTIDY_REMOVE_REDUNDANT_SHAPES "true"}}--remove-red-shapes{{end}} \
               {{if eq .GTFSTIDY_REMOVE_REDUNDANT_STOPS "true"}}--remove-red-stops{{end}} \
               {{if eq .GTFSTIDY_REMOVE_REDUNDANT_TRIPS "true"}}--remove-red-trips{{end}} \
-              {{.CLI_ARGS}} \
+              {{.GTFSCLEAN_FLAGS}} \
               -o "{{.GTFS_TMP_DIR}}tidied.gtfs" \
               "{{.GTFS_TMP_DIR}}gtfs" \
               2>&1 | tee "{{.GTFS_TMP_DIR}}tidied.gtfs.gtfstidy-log.txt"
@@ -167,7 +170,7 @@ tasks:
 
         gtfs-to-duckdb \
           -d --stops-location-index --import-metadata \
-          {{.GTFS_VIA_DUCKDB_FLAGS}} {{.CLI_ARGS}} \
+          {{.GTFS_VIA_DUCKDB_FLAGS}} \
           -- "$db_path" "{{.GTFS_TMP_DIR}}tidied.gtfs"/*.txt
         duckdb -c "CREATE OR REPLACE FUNCTION gtfs_feed_digest () AS ('$digest')" "$db_path"
 
