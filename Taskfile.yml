@@ -113,8 +113,7 @@ tasks:
       - "{{.GTFS_TMP_DIR}}tidied.gtfs.gtfstidy-log.txt"
     cmds:
       - rm -rf "{{.GTFS_TMP_DIR}}tidied.gtfs"
-      - silent: true
-        cmd: |
+      - cmd: |
           if [ "$GTFSTIDY_BEFORE_IMPORT" == "false" ]; then
             echo "creating symlink: {{.GTFS_TMP_DIR}}tidied.gtfs -> {{.GTFS_TMP_DIR}}gtfs"
             ln -s "{{.GTFS_TMP_DIR}}gtfs" "{{.GTFS_TMP_DIR}}tidied.gtfs"
@@ -210,8 +209,7 @@ tasks:
     generates:
       - '{{.GTFS_IMPORTER_DB_PREFIX}}.gtfs.duckdb'
     cmds:
-      - silent: true
-        cmd: |
+      - cmd: |
           if [ "$GTFS_IMPORTER_VERBOSE" != false ]; then
             set -x
           fi
