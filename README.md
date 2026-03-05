@@ -54,6 +54,12 @@ task \
 	-d path/to/gtfs/dir
 ```
 
+### Windows
+
+While [Task uses a portable shell and "core utils" on Windows](https://taskfile.dev/blog/windows-core-utils) to mimick the behaviour of UNIX/GNU tools, there are subtle but important differences between the [shims](https://en.wikipedia.org/wiki/Shim_(computing)) and their real counterpart. Therefore, `duckdb-gtfs-importer` will not work flawlessly on platforms like Windows.
+
+For example, `duckdb-gtfs-importer` makes use of [`touch`](https://www.gnu.org/software/coreutils/manual/html_node/touch-invocation.html)'s `-h`/`--no-dereference` flag, which does not exist in the [`touch` used by Task](https://github.com/u-root/u-root/blob/a9c0bf61c74128eceaed057ee98f4068b603c5f9/pkg/core/touch/touch.go#L32-L37).
+
 
 ## Related
 

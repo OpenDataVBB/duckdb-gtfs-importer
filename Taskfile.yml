@@ -251,7 +251,9 @@ tasks:
 
           echo "creating symlink: {{.GTFS_IMPORTER_DB_PREFIX}}.gtfs.duckdb -> $latest_db"
           ln -f -s "$latest_db" "{{.GTFS_IMPORTER_DB_PREFIX}}.gtfs.duckdb"
-          touch -c -r "$latest_db" "{{.GTFS_IMPORTER_DB_PREFIX}}.gtfs.duckdb"
+          # from the GNU touch manual page:
+          # > -h, --no-dereference – affect each symbolic link instead of any referenced file (useful only on systems that can change the timestamps of a symlink)
+          touch -c -h -r "$latest_db" "{{.GTFS_IMPORTER_DB_PREFIX}}.gtfs.duckdb"
 
   default:
     run: once
