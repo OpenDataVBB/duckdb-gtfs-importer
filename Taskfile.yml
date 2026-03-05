@@ -54,7 +54,7 @@ tasks:
           {{.CURL_MIRROR_CURL_FLAGS}}
         sha256sum "{{.GTFS_TMP_DIR}}gtfs.zip" | cut -d' ' -f1 | tr -d '\n' >"{{.GTFS_TMP_DIR}}gtfs.zip.sha256"
         # apply ZIP's mtime to checksum file too
-        touch -r "{{.GTFS_TMP_DIR}}gtfs.zip" "{{.GTFS_TMP_DIR}}gtfs.zip.sha256"
+        touch -c -r "{{.GTFS_TMP_DIR}}gtfs.zip" "{{.GTFS_TMP_DIR}}gtfs.zip.sha256"
 
   extract-gtfs:
     deps:
@@ -251,6 +251,7 @@ tasks:
 
           echo "creating symlink: {{.GTFS_IMPORTER_DB_PREFIX}}.gtfs.duckdb -> $latest_db"
           ln -f -s "$latest_db" "{{.GTFS_IMPORTER_DB_PREFIX}}.gtfs.duckdb"
+          touch -c -r "$latest_db" "{{.GTFS_IMPORTER_DB_PREFIX}}.gtfs.duckdb"
 
   default:
     run: once
