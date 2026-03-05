@@ -73,6 +73,10 @@ tasks:
     cmds:
       - rm -rf "{{.GTFS_TMP_DIR}}gtfs"
       - |
+        if [ "$GTFS_IMPORTER_VERBOSE" != false ]; then
+          set -x
+        fi
+
         unzip \
           {{if eq .GTFS_IMPORTER_VERBOSE "false"}}-q{{end}} \
           -d "{{.GTFS_TMP_DIR}}gtfs" \
@@ -163,6 +167,10 @@ tasks:
     cmds:
       # todo: use tempfile to make import atomic
       - |
+        if [ "$GTFS_IMPORTER_VERBOSE" != false ]; then
+          set -x
+        fi
+
         digest="$(head -c 6 "{{.GTFS_TMP_DIR}}gtfs.zip.sha256")"
         db_filename="{{.GTFS_IMPORTER_DB_PREFIX}}_{{now | unixEpoch}}_$digest.gtfs.duckdb"
         db_path="{{.GTFS_TMP_DIR}}$db_filename"
